@@ -81,6 +81,7 @@ ShaderTypes::ShaderTypes() {
 	shader_modes[VS::SHADER_SPATIAL].functions["vertex"].built_ins["VIEW_RIGHT"] = constt(ShaderLanguage::TYPE_INT);
 	shader_modes[VS::SHADER_SPATIAL].functions["vertex"].built_ins["VIEWPORT_SIZE"] = constt(ShaderLanguage::TYPE_VEC2);
 	shader_modes[VS::SHADER_SPATIAL].functions["vertex"].built_ins["OUTPUT_IS_SRGB"] = constt(ShaderLanguage::TYPE_BOOL);
+	shader_modes[VS::SHADER_SPATIAL].functions["vertex"].built_ins["TESS_TEXTURE"] = ShaderLanguage::TYPE_VEC4;
 
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["VERTEX"] = constt(ShaderLanguage::TYPE_VEC3);
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["FRAGCOORD"] = constt(ShaderLanguage::TYPE_VEC4);
@@ -102,7 +103,24 @@ ShaderTypes::ShaderTypes() {
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["RIM"] = ShaderLanguage::TYPE_FLOAT;
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["RIM_TINT"] = ShaderLanguage::TYPE_FLOAT;
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["CLEARCOAT"] = ShaderLanguage::TYPE_FLOAT;
-	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["CLEARCOAT_GLOSS"] = ShaderLanguage::TYPE_FLOAT;
+
+	shader_modes[VS::SHADER_SPATIAL].functions["tess_control"].built_ins["TESS_LEVEL"] = ShaderLanguage::TYPE_VEC4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess_control"].built_ins["TESS_UV"] = ShaderLanguage::TYPE_VEC4;
+
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["TESS_LEVEL"] = ShaderLanguage::TYPE_VEC4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["TESS_UV"] = ShaderLanguage::TYPE_VEC4;
+
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["MODELVIEW_MATRIX"] = ShaderLanguage::TYPE_MAT4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["MODELVIEW"] = ShaderLanguage::TYPE_MAT4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["WORLD_MATRIX"] = ShaderLanguage::TYPE_MAT4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["INV_CAMERA_MATRIX"] =  constt(ShaderLanguage::TYPE_MAT4);
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["PROJECTION_MATRIX"] = ShaderLanguage::TYPE_MAT4;
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["INV_PROJECTION_MATRIX"] = constt(ShaderLanguage::TYPE_MAT4);
+	shader_modes[VS::SHADER_SPATIAL].functions["tess"].built_ins["CAMERA_MATRIX"] = constt(ShaderLanguage::TYPE_MAT4);
+
+	shader_modes[VS::SHADER_SPATIAL]
+			.functions["fragment"]
+			.built_ins["CLEARCOAT_GLOSS"] = ShaderLanguage::TYPE_FLOAT;
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["ANISOTROPY"] = ShaderLanguage::TYPE_FLOAT;
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["ANISOTROPY_FLOW"] = ShaderLanguage::TYPE_VEC2;
 	shader_modes[VS::SHADER_SPATIAL].functions["fragment"].built_ins["SSS_STRENGTH"] = ShaderLanguage::TYPE_FLOAT;
@@ -168,6 +186,7 @@ ShaderTypes::ShaderTypes() {
 	shader_modes[VS::SHADER_SPATIAL].modes.push_back("depth_draw_alpha_prepass");
 
 	shader_modes[VS::SHADER_SPATIAL].modes.push_back("depth_test_disable");
+	shader_modes[VS::SHADER_SPATIAL].modes.push_back("use_tessellation");
 
 	shader_modes[VS::SHADER_SPATIAL].modes.push_back("cull_back");
 	shader_modes[VS::SHADER_SPATIAL].modes.push_back("cull_front");

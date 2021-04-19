@@ -125,6 +125,7 @@ public:
 		TEXTURE_DETAIL_MASK,
 		TEXTURE_DETAIL_ALBEDO,
 		TEXTURE_DETAIL_NORMAL,
+		TEXTURE_TESS,
 		TEXTURE_MAX
 
 	};
@@ -147,6 +148,7 @@ public:
 		FEATURE_TRANSMISSION,
 		FEATURE_REFRACTION,
 		FEATURE_DETAIL,
+		FEATURE_TESS,
 		FEATURE_MAX
 	};
 
@@ -175,6 +177,7 @@ public:
 		FLAG_UNSHADED,
 		FLAG_USE_VERTEX_LIGHTING,
 		FLAG_DISABLE_DEPTH_TEST,
+		FLAG_USE_TESSELLATION,
 		FLAG_ALBEDO_FROM_VERTEX_COLOR,
 		FLAG_SRGB_VERTEX_COLOR,
 		FLAG_USE_POINT_SIZE,
@@ -343,15 +346,18 @@ private:
 		StringName distance_fade_min;
 		StringName distance_fade_max;
 		StringName ao_light_affect;
+		StringName tess_level;
+		StringName tess_uv;
 
 		StringName metallic_texture_channel;
 		StringName roughness_texture_channel;
 		StringName ao_texture_channel;
-		StringName clearcoat_texture_channel;
 		StringName rim_texture_channel;
 		StringName depth_texture_channel;
 		StringName refraction_texture_channel;
 		StringName alpha_scissor_threshold;
+		StringName clearcoat_texture_channel;
+		StringName tess_texture_channel;
 
 		StringName texture_names[TEXTURE_MAX];
 	};
@@ -387,6 +393,9 @@ private:
 	float alpha_scissor_threshold;
 	bool grow_enabled;
 	float ao_light_affect;
+	Quat tess_level;
+	Quat tess_uv;
+
 	float grow;
 	int particles_anim_h_frames;
 	int particles_anim_v_frames;
@@ -485,6 +494,12 @@ public:
 
 	void set_clearcoat_gloss(float p_clearcoat_gloss);
 	float get_clearcoat_gloss() const;
+
+	void set_tess(const Quat &p_tess);
+	Quat get_tess() const;
+
+	void set_tess_uv(const Quat &p_tess_uv);
+	Quat get_tess_uv() const;
 
 	void set_anisotropy(float p_anisotropy);
 	float get_anisotropy() const;
@@ -620,6 +635,7 @@ public:
 	TextureChannel get_ao_texture_channel() const;
 	void set_refraction_texture_channel(TextureChannel p_channel);
 	TextureChannel get_refraction_texture_channel() const;
+
 
 	static void init_shaders();
 	static void finish_shaders();

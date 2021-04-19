@@ -78,7 +78,8 @@ static _FORCE_INLINE_ void store_camera(const CameraMatrix &p_mtx, float *p_arra
 		}
 	}
 }
-
+static const float kInnerTessellationLevel = 1.0f;
+static const float kOuterTessellationLevel = 1.0f;
 /* SHADOW ATLAS API */
 
 RID RasterizerSceneGLES3::shadow_atlas_create() {
@@ -1103,9 +1104,9 @@ bool RasterizerSceneGLES3::_setup_material(RasterizerStorageGLES3::Material *p_m
 	}
 
 	//material parameters
-
 	state.scene_shader.set_custom_shader(p_material->shader->custom_code_id);
-	bool rebind = state.scene_shader.bind();
+
+	bool rebind = state.scene_shader.bind(p_material->shader->spatial.use_tessellation);
 
 	if (p_material->ubo_id) {
 		glBindBufferBase(GL_UNIFORM_BUFFER, 1, p_material->ubo_id);
@@ -1268,6 +1269,7 @@ void RasterizerSceneGLES3::_setup_geometry(RenderList::Element *e, const Transfo
 				//blend shapes, use transform feedback
 				storage->mesh_render_blend_shapes(s, e->instance->blend_values.read().ptr());
 				//rebind shader
+
 				state.scene_shader.bind();
 #ifdef DEBUG_ENABLED
 			} else if (state.debug_draw == VS::VIEWPORT_DEBUG_DRAW_WIREFRAME && s->array_wireframe_id) {
@@ -1453,12 +1455,21 @@ static const GLenum gl_primitive[] = {
 	GL_LINE_LOOP,
 	GL_TRIANGLES,
 	GL_TRIANGLE_STRIP,
-	GL_TRIANGLE_FAN
+	GL_TRIANGLE_FAN,
+	GL_PATCHES
 };
 
-void RasterizerSceneGLES3::_render_geometry(RenderList::Element *e) {
+void RasterizerSceneGLES3::_render_geometry(bool isUsingTessellation, RenderList::Element *e) {
+
+
+
 	switch (e->instance->base_type) {
 		case VS::INSTANCE_MESH: {
+
+			//	glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, innerTessLevels);
+			//	glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, outerTessLevels);
+			//	glPatchParameteri(GL_PATCH_VERTICES, 3);
+
 			RasterizerStorageGLES3::Surface *s = static_cast<RasterizerStorageGLES3::Surface *>(e->geometry);
 
 #ifdef DEBUG_ENABLED
@@ -1468,14 +1479,20 @@ void RasterizerSceneGLES3::_render_geometry(RenderList::Element *e) {
 				storage->info.render.vertices_count += s->index_array_len;
 			} else
 #endif
+
 					if (s->index_array_len > 0) {
 
-				glDrawElements(gl_primitive[s->primitive], s->index_array_len, (s->array_len >= (1 << 16)) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, nullptr);
+				//override default primitive type to => GL_PATCHES
 
-				storage->info.render.vertices_count += s->index_array_len;
+				// have to check if later
+
+				//	s->material
+				glDrawElements(gl_primitive[(isUsingTessellation) ? 7 : s->primitive], s->index_array_len, (s->array_len >= (1 << 16)) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
+				//		storage->info.render.vertices_count += s->index_array_len;
 
 			} else {
-				glDrawArrays(gl_primitive[s->primitive], 0, s->array_len);
+
+				glDrawArrays(gl_primitive[(isUsingTessellation) ? 7 : s->primitive], 0, s->array_len);
 
 				storage->info.render.vertices_count += s->array_len;
 			}
@@ -1520,6 +1537,10 @@ void RasterizerSceneGLES3::_render_geometry(RenderList::Element *e) {
 
 			glBindBuffer(GL_ARRAY_BUFFER, state.immediate_buffer);
 			glBindVertexArray(state.immediate_array);
+
+			//glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, innerTessLevels);
+			//	glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, outerTessLevels);
+			//	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
 			for (const List<RasterizerStorageGLES3::Immediate::Chunk>::Element *E = im->chunks.front(); E; E = E->next()) {
 				const RasterizerStorageGLES3::Immediate::Chunk &c = E->get();
@@ -2114,11 +2135,14 @@ void RasterizerSceneGLES3::_render_list(RenderList::Element **p_elements, int p_
 			state.scene_shader.set_conditional(SceneShaderGLES3::ENABLE_OCTAHEDRAL_COMPRESSION, octahedral_compression);
 			rebind = true;
 		}
+		bool isUsingTessellation = false;
 
 		if (material != prev_material || rebind) {
 			storage->info.render.material_switch_count++;
 
 			rebind = _setup_material(material, use_opaque_prepass, p_alpha_pass);
+			if (material->shader->spatial.use_tessellation)
+				isUsingTessellation = true;
 
 			if (rebind) {
 				storage->info.render.shader_rebind_count++;
@@ -2138,7 +2162,7 @@ void RasterizerSceneGLES3::_render_list(RenderList::Element **p_elements, int p_
 
 		state.scene_shader.set_uniform(SceneShaderGLES3::WORLD_TRANSFORM, e->instance->transform);
 
-		_render_geometry(e);
+		_render_geometry(isUsingTessellation, e);
 
 		prev_material = material;
 		prev_base_type = e->instance->base_type;

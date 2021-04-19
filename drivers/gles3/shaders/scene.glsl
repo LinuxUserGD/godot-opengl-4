@@ -1,8 +1,537 @@
 /* clang-format off */
+[tess]
+layout(triangles) in;
+uniform highp mat4 world_transform;
+
+
+#ifdef USE_VERTEX_LIGHTING
+in vec4 diffuse_light_interp_out[gl_MaxPatchVertices];
+in vec4 specular_light_interp_out[gl_MaxPatchVertices];
+
+out vec4 diffuse_light_interp;
+out vec4 specular_light_interp;
+#endif
+
+in highp vec3 vertex_interp_out[gl_MaxPatchVertices];
+in vec3 normal_interp_out[gl_MaxPatchVertices];
+
+out highp vec3 vertex_interp;
+out vec3 normal_interp;
+
+#if defined(ENABLE_COLOR_INTERP)
+in vec4 color_interp_out[];
+out vec4 color_interp;
+#endif
+
+#define uvw gl_TessCoord
+
+#if defined(USE_TESS)
+in vec4 tess_bump_out[gl_MaxPatchVertices];
+
+struct pn_patch
+{
+  float b210;
+  float b120;
+  float b021;
+  float b012;
+  float b102;
+  float b201;
+  float b111;
+  float n110;
+  float n011;
+  float n101;
+};
+
+in pn_patch tcs_patch[gl_MaxPatchVertices];
+
+#endif
+
+#if defined(ENABLE_UV_INTERP)
+in vec2 uv_interp_out[gl_MaxPatchVertices];
+out vec2 uv_interp;
+#endif
+
+#if defined(ENABLE_UV2_INTERP) || defined(USE_LIGHTMAP)
+in vec2 uv2_interp_out[gl_MaxPatchVertices];
+out vec2 uv2_interp;
+#endif
+
+#if defined(ENABLE_TANGENT_INTERP) || defined(ENABLE_NORMALMAP) || defined(LIGHT_USE_ANISOTROPY)
+in vec3 binormal_interp_out[gl_MaxPatchVertices];
+in vec3 tangent_interp_out[gl_MaxPatchVertices];
+out vec3 binormal_interp;
+out vec3 tangent_interp;
+#endif
+
+#ifdef RENDER_DEPTH_DUAL_PARABOLOID
+in highp float dp_clip_out[gl_MaxPatchVertices];
+out highp float dp_clip;
+#endif
+
+in highp vec4 position_interp_out[gl_MaxPatchVertices];
+out highp vec4 position_interp;
+
+
+#if defined(USE_MATERIAL)
+
+/* clang-format off */
+layout(std140) uniform UniformData { // ubo:1
+
+MATERIAL_UNIFORMS
+
+};
+/* clang-format on */
+
+#endif
+
+/* clang-format off */
+
+TESS_SHADER_GLOBALS
+
+/* clang-format on */
+
+layout(std140) uniform SceneData { // ubo:0
+
+	highp mat4 projection_matrix;
+	highp mat4 inv_projection_matrix;
+	highp mat4 camera_inverse_matrix;
+	highp mat4 camera_matrix;
+
+	mediump vec4 ambient_light_color;
+	mediump vec4 bg_color;
+
+	mediump vec4 fog_color_enabled;
+	mediump vec4 fog_sun_color_amount;
+
+	mediump float ambient_energy;
+	mediump float bg_energy;
+
+	mediump float z_offset;
+	mediump float z_slope_scale;
+	highp float shadow_dual_paraboloid_render_zfar;
+	highp float shadow_dual_paraboloid_render_side;
+
+	highp vec2 viewport_size;
+	highp vec2 screen_pixel_size;
+	highp vec2 shadow_atlas_pixel_size;
+	highp vec2 directional_shadow_pixel_size;
+
+	highp float time;
+	highp float z_far;
+	mediump float reflection_multiplier;
+	mediump float subsurface_scatter_width;
+	mediump float ambient_occlusion_affect_light;
+	mediump float ambient_occlusion_affect_ao_channel;
+	mediump float opaque_prepass_threshold;
+
+	bool fog_depth_enabled;
+	highp float fog_depth_begin;
+	highp float fog_depth_end;
+	mediump float fog_density;
+	highp float fog_depth_curve;
+	bool fog_transmit_enabled;
+	highp float fog_transmit_curve;
+	bool fog_height_enabled;
+	highp float fog_height_min;
+	highp float fog_height_max;
+	highp float fog_height_curve;
+};
+
+#if defined(USE_TESS)
+	vec4 tess_level = vec4(0,0,0,1);
+	vec4 tess_uv = vec4(0,0,0,1);
+#endif
+
+void main()
+{
+
+
+	{
+		/* clang-format off */
+
+TESS_SHADER_CODE
+
+		/* clang-format on */
+	}
+
+
+highp mat4 world_matrix = world_transform;
+
+#ifdef USE_INSTANCING
+
+	{
+		highp mat4 m = mat4(instance_xform0, instance_xform1, instance_xform2, vec4(0.0, 0.0, 0.0, 1.0));
+		world_matrix = world_matrix * transpose(m);
+	}
+#endif
+
+
+#ifdef USE_VERTEX_LIGHTING
+	//diffuse_light_interp = diffuse_light_interp_out[0];
+	//specular_light_interp = specular_light_interp_out[0];
+
+	 diffuse_light_interp = (gl_TessCoord[0] * diffuse_light_interp_out[0]) +
+                  (gl_TessCoord[1] * diffuse_light_interp_out[1]) +
+                  (gl_TessCoord[2]  * diffuse_light_interp_out[2]);
+
+	 specular_light_interp = (gl_TessCoord[0] * specular_light_interp_out[0]) +
+                  (gl_TessCoord[1] * specular_light_interp_out[1]) +
+                  (gl_TessCoord[2] * specular_light_interp_out[2]);
+#endif
+
+	position_interp = gl_Position;
+
+	vec3 accum2 = vec3(0.0f);
+	accum2 += gl_TessCoord[0] * vertex_interp_out[0];
+	accum2 += gl_TessCoord[1] * vertex_interp_out[1];
+	accum2 += gl_TessCoord[2] * vertex_interp_out[2];
+	vertex_interp = accum2;
+
+
+#if defined(ENABLE_UV_INTERP)
+
+	vec4 uv_test = vec4(0.0f);
+	uv_test += gl_TessCoord[0] * vec4(uv_interp_out[0].x, uv_interp_out[0].y,0,0);
+	uv_test += gl_TessCoord[1]  *  vec4(uv_interp_out[1].x, uv_interp_out[1].y,0,0);
+	uv_test += gl_TessCoord[2] *  vec4(uv_interp_out[2].x, uv_interp_out[2].y,0,0);
+
+	uv_interp = vec2(uv_test.x, uv_test.y);
+#endif
+
+#if defined(ENABLE_COLOR_INTERP)
+
+	 color_interp = (gl_TessCoord[0] * color_interp_out[0]) +
+                  (gl_TessCoord[1] * color_interp_out[1]) +
+                  (gl_TessCoord[2] * color_interp_out[2]);
+#endif
+
+
+
+#if defined(USE_TESS)
+
+  vec3 uvwSquared = uvw * uvw;
+  vec3 uvwCubed   = uvwSquared * uvw;
+
+  // extract control points
+  vec3 b210 = vec3(tcs_patch[0].b210, tcs_patch[1].b210, tcs_patch[2].b210);
+  vec3 b120 = vec3(tcs_patch[0].b120, tcs_patch[1].b120, tcs_patch[2].b120);
+  vec3 b021 = vec3(tcs_patch[0].b021, tcs_patch[1].b021, tcs_patch[2].b021);
+  vec3 b012 = vec3(tcs_patch[0].b012, tcs_patch[1].b012, tcs_patch[2].b012);
+  vec3 b102 = vec3(tcs_patch[0].b102, tcs_patch[1].b102, tcs_patch[2].b102);
+  vec3 b201 = vec3(tcs_patch[0].b201, tcs_patch[1].b201, tcs_patch[2].b201);
+  vec3 b111 = vec3(tcs_patch[0].b111, tcs_patch[1].b111, tcs_patch[2].b111);
+
+  // extract control normals
+  vec3 n110 = normalize(vec3(tcs_patch[0].n110, tcs_patch[1].n110, tcs_patch[2].n110));
+  vec3 n011 = normalize(vec3(tcs_patch[0].n011, tcs_patch[1].n011, tcs_patch[2].n011));
+  vec3 n101 = normalize(vec3(tcs_patch[0].n101, tcs_patch[1].n101, tcs_patch[2].n101));
+
+
+
+	vec4 bump = (gl_TessCoord[0] * tess_bump_out[0]) +
+					(gl_TessCoord[1] * tess_bump_out[1]) +
+					(gl_TessCoord[2] * tess_bump_out[2]);
+
+
+	vec3 barNormal = gl_TessCoord[2]*normal_interp_out[0].xyz + gl_TessCoord[0]*normal_interp_out[1].xyz + gl_TessCoord[1]*normal_interp_out[2].xyz;
+	vec3 pnNormal  = normal_interp_out[0].xyz*uvwSquared[2] + normal_interp_out[1].xyz*uvwSquared[0] + normal_interp_out[2].xyz*uvwSquared[1]
+								+ n110*uvw[2]*uvw[0] + n011*uvw[0]*uvw[1]+ n101*uvw[2]*uvw[1];
+
+	float tess_alpha = tess_level.z;
+    vec3 Normal = normalize(tess_alpha*pnNormal + (1.0-tess_alpha) * barNormal);
+
+    // compute interpolated pos
+    vec3 barPos = gl_TessCoord[2]*gl_in[0].gl_Position.xyz + gl_TessCoord[0]*gl_in[1].gl_Position.xyz + gl_TessCoord[1]*gl_in[2].gl_Position.xyz;
+    // save some computations
+    uvwSquared *= 3.0;
+    // compute PN position
+	vec3 pnPos  = gl_in[0].gl_Position.xyz*uvwCubed[2]
+						+ gl_in[1].gl_Position.xyz*uvwCubed[0]
+						+ gl_in[2].gl_Position.xyz*uvwCubed[1]
+						+ b210*uvwSquared[2]*uvw[0]
+						+ b120*uvwSquared[0]*uvw[2]
+						+ b201*uvwSquared[2]*uvw[1]
+						+ b021*uvwSquared[0]*uvw[1]
+						+ b102*uvwSquared[1]*uvw[2]
+						+ b012*uvwSquared[1]*uvw[0]
+						+ b111*6.0*uvw[0]*uvw[1]*uvw[2];
+
+	// final position and normal
+	vec3 finalPos = tess_alpha*pnPos + (1.0-tess_alpha)*barPos;
+	float bump_scale = tess_level.w;
+	finalPos += bump.x * Normal * bump_scale;
+
+
+//something here went wrong
+	highp mat4 modelview = camera_inverse_matrix * world_matrix;
+
+	vec4 modView =  modelview * vec4(Normal, 0.0);
+	normal_interp = modView.xyz;
+    vec4 view_pos = modelview * vec4(finalPos,1.0);
+
+	gl_Position = projection_matrix * view_pos;
+
+
+#else
+
+	vec3 accum1 = vec3(0.0f);
+	accum1 += gl_TessCoord[0] * normal_interp_out[0];
+	accum1 += gl_TessCoord[1] * normal_interp_out[1];
+	accum1 += gl_TessCoord[2] * normal_interp_out[2];
+	normal_interp = accum1;
+
+	gl_Position = (gl_TessCoord[0] * gl_in[0].gl_Position) +
+					(gl_TessCoord[1] * gl_in[1].gl_Position) +
+					(gl_TessCoord[2] * gl_in[2].gl_Position);
+
+#endif
+
+
+
+#if defined(ENABLE_UV2_INTERP) || defined(USE_LIGHTMAP)
+	vec4 uv_test2 = vec4(0.0f);
+	uv_test2 += gl_TessCoord[0] * vec4(uv2_interp_out[0].x, uv2_interp_out[0].y,0,0);
+	uv_test2 += gl_TessCoord[1]  *  vec4(uv2_interp_out[1].x, uv2_interp_out[1].y,0,0);
+	uv_test2 += gl_TessCoord[2] *  vec4(uv2_interp_out[2].x, uv2_interp_out[2].y,0,0);
+
+	uv2_interp = vec2(uv_test2.x, uv_test2.y);
+#endif
+
+#if defined(ENABLE_TANGENT_INTERP) || defined(ENABLE_NORMALMAP) || defined(LIGHT_USE_ANISOTROPY)
+//	binormal_interp = binormal_interp_out[0];
+	//tangent_interp = tangent_interp_out[0];
+
+	vec3 accum7 = vec3(0.0f);
+	accum7 += gl_TessCoord[0] * binormal_interp_out[0];
+	accum7 += gl_TessCoord[1] * binormal_interp_out[1];
+	accum7 += gl_TessCoord[2] * binormal_interp_out[2];
+	binormal_interp = accum7;
+
+
+	vec3 accum5 = vec3(0.0f);
+	accum5 += gl_TessCoord[0] * tangent_interp_out[0];
+	accum5 += gl_TessCoord[1] * tangent_interp_out[1];
+	accum5 += gl_TessCoord[2] * tangent_interp_out[2];
+	tangent_interp = accum5;
+
+#endif
+
+#ifdef RENDER_DEPTH_DUAL_PARABOLOID
+	dp_clip = dp_clip_out[0];
+#endif
+
+
+}
+
+/* clang-format off */
+[tess_control]
+layout(vertices = 3) out;
+
+/* clang-format on */
+
+#ifdef USE_VERTEX_LIGHTING
+in vec4 diffuse_light_interp[];
+in vec4 specular_light_interp[];
+
+out vec4 diffuse_light_interp_out[];
+out vec4 specular_light_interp_out[];
+#endif
+
+in highp vec3 vertex_interp[];
+in vec3 normal_interp[];
+out highp vec3 vertex_interp_out[];
+out vec3 normal_interp_out[];
+
+#if defined(ENABLE_COLOR_INTERP)
+in vec4 color_interp[];
+out vec4 color_interp_out[];
+#endif
+
+#if defined(ENABLE_UV_INTERP)
+in vec2 uv_interp[];
+ out vec2 uv_interp_out[];
+#endif
+
+#if defined(ENABLE_UV2_INTERP) || defined(USE_LIGHTMAP)
+in vec2 uv2_interp[];
+out vec2 uv2_interp_out[];
+#endif
+
+#if defined(USE_TESS)
+in vec4 tess_bump[];
+out vec4 tess_bump_out[];
+#endif
+
+#if defined(ENABLE_TANGENT_INTERP) || defined(ENABLE_NORMALMAP) || defined(LIGHT_USE_ANISOTROPY)
+in vec3 tangent_interp[];
+in vec3 binormal_interp[];
+out vec3 binormal_interp_out[];
+out vec3 tangent_interp_out[];
+#endif
+
+#ifdef RENDER_DEPTH_DUAL_PARABOLOID
+in highp float dp_clip[];
+out highp float dp_clip_out[];
+#endif
+
+in highp vec4 position_interp[];
+out highp vec4 position_interp_out[];
+
+
+#if defined(USE_MATERIAL)
+
+/* clang-format off */
+layout(std140) uniform UniformData { // ubo:1
+
+MATERIAL_UNIFORMS
+
+};
+/* clang-format on */
+
+
+/* clang-format off */
+
+TESS_CONTROL_SHADER_GLOBALS
+
+/* clang-format on */
+
+
+#endif
+
+#if defined(USE_TESS)
+
+	struct pn_patch
+	{
+		float b210;
+		float b120;
+		float b021;
+		float b012;
+		float b102;
+		float b201;
+		float b111;
+		float n110;
+		float n011;
+		float n101;
+	};
+
+
+	vec4 tess_level = vec4(0,0,0,1);
+	out pn_patch tcs_patch[3];
+
+	float wij(int i, int j)
+	{
+		return dot(gl_in[j].gl_Position.xyz - gl_in[i].gl_Position.xyz, normal_interp[i].xyz);
+	}
+
+	float vij(int i, int j)
+	{
+		vec3 Pj_minus_Pi = gl_in[j].gl_Position.xyz - gl_in[i].gl_Position.xyz;
+		vec3 Ni_plus_Nj  = normal_interp[i].xyz + normal_interp[j].xyz;
+		return 2.0*dot(Pj_minus_Pi, Ni_plus_Nj) / dot(Pj_minus_Pi, Pj_minus_Pi);
+	}
+
+#endif
+
+void main()
+{
+
+	{
+		/* clang-format off */
+
+TESS_CONTROL_SHADER_CODE
+
+		/* clang-format on */
+	}
+
+
+	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+
+#ifdef USE_VERTEX_LIGHTING
+	diffuse_light_interp_out[gl_InvocationID] = diffuse_light_interp [gl_InvocationID];
+	specular_light_interp_out[gl_InvocationID] = specular_light_interp [gl_InvocationID];
+#endif
+
+	vertex_interp_out[gl_InvocationID] = vertex_interp [gl_InvocationID];
+	normal_interp_out[gl_InvocationID] = normal_interp [gl_InvocationID];
+
+#if defined(ENABLE_COLOR_INTERP)
+	color_interp_out[gl_InvocationID] = color_interp [gl_InvocationID];
+#endif
+
+#if defined(USE_TESS)
+	tess_bump_out[gl_InvocationID] = tess_bump[gl_InvocationID];
+#endif
+
+#if defined(ENABLE_UV_INTERP)
+	uv_interp_out[gl_InvocationID] = uv_interp [gl_InvocationID];
+#endif
+
+#if defined(ENABLE_UV2_INTERP) || defined(USE_LIGHTMAP)
+	uv2_interp_out[gl_InvocationID] = uv2_interp [gl_InvocationID];
+#endif
+
+#if defined(ENABLE_TANGENT_INTERP) || defined(ENABLE_NORMALMAP) || defined(LIGHT_USE_ANISOTROPY)
+	tangent_interp_out[gl_InvocationID] = tangent_interp [gl_InvocationID];
+	binormal_interp_out[gl_InvocationID] = binormal_interp [gl_InvocationID];
+#endif
+
+#ifdef RENDER_DEPTH_DUAL_PARABOLOID
+	dp_clip_out[gl_InvocationID] = dp_clip [gl_InvocationID];
+#endif
+
+position_interp_out[gl_InvocationID] = position_interp [gl_InvocationID];
+
+#if defined(USE_TESS)
+
+    float P0 = gl_in[0].gl_Position[gl_InvocationID];
+	float P1 = gl_in[1].gl_Position[gl_InvocationID];
+	float P2 = gl_in[2].gl_Position[gl_InvocationID];
+	float N0 = normal_interp[0][gl_InvocationID];
+	float N1 = normal_interp[1][gl_InvocationID];
+	float N2 = normal_interp[2][gl_InvocationID];
+
+	// compute control points
+	tcs_patch[gl_InvocationID].b210 = (2.0*P0 + P1 - wij(0,1)*N0)/3.0;
+	tcs_patch[gl_InvocationID].b120 = (2.0*P1 + P0 - wij(1,0)*N1)/3.0;
+	tcs_patch[gl_InvocationID].b021 = (2.0*P1 + P2 - wij(1,2)*N1)/3.0;
+	tcs_patch[gl_InvocationID].b012 = (2.0*P2 + P1 - wij(2,1)*N2)/3.0;
+	tcs_patch[gl_InvocationID].b102 = (2.0*P2 + P0 - wij(2,0)*N2)/3.0;
+	tcs_patch[gl_InvocationID].b201 = (2.0*P0 + P2 - wij(0,2)*N0)/3.0;
+
+	float E = ( tcs_patch[gl_InvocationID].b210
+			+ tcs_patch[gl_InvocationID].b120
+			+ tcs_patch[gl_InvocationID].b021
+			+ tcs_patch[gl_InvocationID].b012
+			+ tcs_patch[gl_InvocationID].b102
+			+ tcs_patch[gl_InvocationID].b201 ) / 6.0;
+
+   float V = (P0 + P1 + P2) / 3.0;
+
+    tcs_patch[gl_InvocationID].b111 = E + (E - V)*0.5;
+	tcs_patch[gl_InvocationID].n110 = N0+N1-vij(0,1)*(P1-P0);
+	tcs_patch[gl_InvocationID].n011 = N1+N2-vij(1,2)*(P2-P1);
+	tcs_patch[gl_InvocationID].n101 = N2+N0-vij(2,0)*(P0-P2);
+
+
+    gl_TessLevelOuter[gl_InvocationID] = tess_level.x;
+	gl_TessLevelInner[0] = tess_level.y;
+
+#else
+
+	if (gl_InvocationID == 0)
+    {
+        gl_TessLevelInner[0] = 1.0;
+        gl_TessLevelOuter[0] = 1.0;
+        gl_TessLevelOuter[1] = 1.0;
+        gl_TessLevelOuter[2] = 1.0;
+    }
+#endif
+}
+
+/* clang-format off */
 [vertex]
 
 #define M_PI 3.14159265359
-
 #define SHADER_IS_SRGB false
 
 /*
@@ -54,6 +583,7 @@ layout(location = 5) in vec2 uv2_attrib;
 layout(location = 6) in uvec4 bone_indices; // attrib:6
 layout(location = 7) in highp vec4 bone_weights; // attrib:7
 #endif
+
 
 #ifdef USE_INSTANCING
 
@@ -175,6 +705,7 @@ uniform int spot_light_count;
 
 #endif
 
+
 out vec4 diffuse_light_interp;
 out vec4 specular_light_interp;
 
@@ -290,6 +821,11 @@ out vec3 tangent_interp;
 out vec3 binormal_interp;
 #endif
 
+#if defined(USE_TESS)
+vec4 tess_texture = vec4(0,0,0,0);
+out vec4 tess_bump;
+#endif
+
 #if defined(USE_MATERIAL)
 
 /* clang-format off */
@@ -319,6 +855,7 @@ out highp float dp_clip;
 #ifdef USE_SKELETON
 uniform highp sampler2D skeleton_texture; // texunit:-1
 #endif
+
 
 out highp vec4 position_interp;
 
@@ -472,6 +1009,10 @@ VERTEX_SHADER_CODE
 
 	gl_PointSize = point_size;
 
+#if defined(USE_TESS)
+	tess_bump = tess_texture;
+#endif
+
 // using local coordinates (default)
 #if !defined(SKIP_TRANSFORM_USED) && !defined(VERTEX_WORLD_COORDS_USED)
 
@@ -548,6 +1089,9 @@ VERTEX_SHADER_CODE
 	gl_Position = projection_matrix * vec4(vertex_interp, 1.0);
 #endif
 
+
+
+
 	position_interp = gl_Position;
 
 #ifdef USE_VERTEX_LIGHTING
@@ -565,6 +1109,11 @@ VERTEX_SHADER_CODE
 		light_process_spot(spot_light_indices[i], vertex_interp, -normalize(vertex_interp), normal_interp, roughness, diffuse_light_interp.rgb, specular_light_interp.rgb);
 	}
 #endif
+
+
+
+
+
 
 #ifdef USE_LIGHT_DIRECTIONAL
 
@@ -595,6 +1144,8 @@ VERTEX_SHADER_CODE
 #endif //USE_LIGHT_DIRECTIONAL
 
 #endif // USE_VERTEX_LIGHTING
+
+
 }
 
 /* clang-format off */
@@ -702,6 +1253,7 @@ vec3 textureDualParaboloid(sampler2D p_tex, vec3 p_vec, float p_roughness) {
 #endif
 
 #endif
+
 
 /* Material Uniforms */
 
@@ -1720,6 +2272,9 @@ void gi_probes_compute(vec3 pos, vec3 normal, float roughness, inout vec3 out_sp
 
 #endif
 
+
+
+
 void main() {
 #ifdef RENDER_DEPTH_DUAL_PARABOLOID
 
@@ -1768,6 +2323,8 @@ void main() {
 		normal = -normal;
 	}
 #endif
+
+
 
 #if defined(ENABLE_UV_INTERP)
 	vec2 uv = uv_interp;
@@ -2291,4 +2848,9 @@ FRAGMENT_SHADER_CODE
 #endif //USE_MULTIPLE_RENDER_TARGETS
 
 #endif //RENDER_DEPTH
+
+
+
+
+
 }

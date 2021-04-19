@@ -94,6 +94,8 @@ private:
 	int feedback_count;
 	int vertex_code_start;
 	int fragment_code_start;
+	int tess_code_start;
+	int tess_control_code_start;
 	int attribute_pair_count;
 
 	struct CustomCode {
@@ -101,6 +103,10 @@ private:
 		String vertex_globals;
 		String fragment;
 		String fragment_globals;
+		String tess;
+		String tess_globals;
+		String tess_control;
+		String tess_control_globals;
 		String light;
 		String uniforms;
 		uint32_t version;
@@ -113,6 +119,8 @@ private:
 		GLuint id;
 		GLuint vert_id;
 		GLuint frag_id;
+		GLuint tess_id;
+		GLuint tess_control_id;
 		GLint *uniform_location;
 		Vector<GLint> texture_uniform_locations;
 		uint32_t code_version;
@@ -121,6 +129,8 @@ private:
 				id(0),
 				vert_id(0),
 				frag_id(0),
+				tess_id(0),
+				tess_control_id(0),
 				uniform_location(nullptr),
 				code_version(0),
 				ok(false) {}
@@ -161,6 +171,10 @@ private:
 	const Feedback *feedbacks;
 	const char *vertex_code;
 	const char *fragment_code;
+
+	const char *tess_code;
+	const char *tess_control_code;
+
 	CharString fragment_code0;
 	CharString fragment_code1;
 	CharString fragment_code2;
@@ -171,6 +185,16 @@ private:
 	CharString vertex_code1;
 	CharString vertex_code2;
 	CharString vertex_code3;
+
+	CharString tess_code0;
+	CharString tess_code1;
+	CharString tess_code2;
+	CharString tess_code3;
+
+	CharString tess_control_code0;
+	CharString tess_control_code1;
+	CharString tess_control_code2;
+	CharString tess_control_code3;
 
 	Vector<CharString> custom_defines;
 
@@ -278,7 +302,7 @@ protected:
 	_FORCE_INLINE_ int _get_uniform(int p_which) const;
 	_FORCE_INLINE_ void _set_conditional(int p_which, bool p_value);
 
-	void setup(const char **p_conditional_defines, int p_conditional_count, const char **p_uniform_names, int p_uniform_count, const AttributePair *p_attribute_pairs, int p_attribute_count, const TexUnitPair *p_texunit_pairs, int p_texunit_pair_count, const UBOPair *p_ubo_pairs, int p_ubo_pair_count, const Feedback *p_feedback, int p_feedback_count, const char *p_vertex_code, const char *p_fragment_code, int p_vertex_code_start, int p_fragment_code_start);
+	void setup(const char **p_conditional_defines, int p_conditional_count, const char **p_uniform_names, int p_uniform_count, const AttributePair *p_attribute_pairs, int p_attribute_count, const TexUnitPair *p_texunit_pairs, int p_texunit_pair_count, const UBOPair *p_ubo_pairs, int p_ubo_pair_count, const Feedback *p_feedback, int p_feedback_count, const char *p_vertex_code, const char *p_fragment_code, const char *p_tess_code, const char *p_tess_control_code, int p_vertex_code_start, int p_fragment_code_start, int p_tess_code_start, int p_tess_control_code_start);
 
 	ShaderGLES3();
 
@@ -287,11 +311,13 @@ public:
 		CUSTOM_SHADER_DISABLED = 0
 	};
 
+	bool isTessellationActive = false;
+
 	GLint get_uniform_location(const String &p_name) const;
 	GLint get_uniform_location(int p_index) const;
 
 	static _FORCE_INLINE_ ShaderGLES3 *get_active() { return active; };
-	bool bind();
+	bool bind(bool tessalation = false);
 	void unbind();
 	void bind_uniforms();
 
@@ -300,7 +326,7 @@ public:
 	void clear_caches();
 
 	uint32_t create_custom_shader();
-	void set_custom_shader_code(uint32_t p_code_id, const String &p_vertex, const String &p_vertex_globals, const String &p_fragment, const String &p_light, const String &p_fragment_globals, const String &p_uniforms, const Vector<StringName> &p_texture_uniforms, const Vector<CharString> &p_custom_defines);
+	void set_custom_shader_code(uint32_t p_code_id, const String &p_vertex, const String &p_vertex_globals, const String &p_fragment, const String &p_light, const String &p_fragment_globals, const String &p_tess, const String &p_tess_globals, const String &p_tess_control, const String &p_tess_control_globals, const String &p_uniforms, const Vector<StringName> &p_texture_uniforms, const Vector<CharString> &p_custom_defines);
 	void set_custom_shader(uint32_t p_code_id);
 	void free_custom_shader(uint32_t p_code_id);
 

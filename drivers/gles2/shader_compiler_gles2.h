@@ -58,6 +58,10 @@ public:
 		String vertex;
 		String fragment_global;
 		String fragment;
+		String tess_global;
+		String tess;
+		String tess_control_global;
+		String tess_control;
 		String light;
 
 		bool uses_fragment_time;

@@ -103,11 +103,11 @@ void ShaderGLES3::bind_uniforms() {
 
 GLint ShaderGLES3::get_uniform_location(int p_index) const {
 	ERR_FAIL_COND_V(!version, -1);
-
 	return version->uniform_location[p_index];
 }
 
-bool ShaderGLES3::bind() {
+bool ShaderGLES3::bind(bool tessalation) {
+	isTessellationActive = tessalation;
 	if (active != this || !version || new_conditional_version.key != conditional_version.key) {
 		conditional_version = new_conditional_version;
 		version = get_current_version();
@@ -185,6 +185,10 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 			//bye bye shaders
 			glDeleteShader(v.vert_id);
 			glDeleteShader(v.frag_id);
+			if (isTessellationActive) {
+				glDeleteShader(v.tess_id);
+				glDeleteShader(v.tess_control_id);
+			}
 			glDeleteProgram(v.id);
 			v.id = 0;
 		}
@@ -195,10 +199,10 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 
 	Vector<const char *> strings;
 #ifdef GLES_OVER_GL
-	strings.push_back("#version 330\n");
+	strings.push_back("#version 400\n");
 	strings.push_back("#define GLES_OVER_GL\n");
 #else
-	strings.push_back("#version 300 es\n");
+	strings.push_back("#version 400 es\n");
 #endif
 
 #ifdef ANDROID_ENABLED
@@ -241,7 +245,7 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 
 	ERR_FAIL_COND_V(v.id == 0, nullptr);
 
-	/* VERTEX SHADER */
+	/* TESS SHADER */
 
 	if (cc) {
 		for (int i = 0; i < cc->custom_defines.size(); i++) {
@@ -251,6 +255,8 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 	}
 
 	int strings_base_size = strings.size();
+
+	//vertex shader
 
 	//vertex precision is high
 	strings.push_back("precision highp float;\n");
@@ -294,7 +300,6 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 	v.vert_id = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(v.vert_id, strings.size(), &strings[0], nullptr);
 	glCompileShader(v.vert_id);
-
 	GLint status;
 
 	glGetShaderiv(v.vert_id, GL_COMPILE_STATUS, &status);
@@ -331,6 +336,177 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 		ERR_FAIL_V(nullptr);
 	}
 
+	/* TESS CONTROL SHADER */
+	strings.resize(strings_base_size);
+
+	//vertex precision is high
+	strings.push_back("precision highp float;\n");
+	strings.push_back("precision highp int;\n");
+#ifndef GLES_OVER_GL
+	strings.push_back("precision highp sampler2D;\n");
+	strings.push_back("precision highp samplerCube;\n");
+	strings.push_back("precision highp sampler2DArray;\n");
+#endif
+
+	strings.push_back(tess_control_code0.get_data());
+
+	if (cc) {
+		material_string = cc->uniforms.ascii();
+		strings.push_back(material_string.get_data());
+	}
+
+	strings.push_back(tess_control_code1.get_data());
+
+	if (cc) {
+		code_globals = cc->tess_control_globals.ascii();
+		strings.push_back(code_globals.get_data());
+	}
+
+	strings.push_back(tess_control_code2.get_data());
+
+	if (cc) {
+		code_string = cc->tess_control.ascii();
+		strings.push_back(code_string.get_data());
+	}
+
+	strings.push_back(tess_control_code3.get_data());
+
+#ifdef DEBUG_SHADER
+
+	DEBUG_PRINT("\nTess Control Code:\n\n" + String(code_string.get_data()));
+	for (int i = 0; i < strings.size(); i++) {
+
+		//print_line("vert strings "+itos(i)+":"+String(strings[i]));
+	}
+#endif
+
+	v.tess_control_id = glCreateShader(GL_TESS_CONTROL_SHADER);
+	glShaderSource(v.tess_control_id, strings.size(), &strings[0], NULL);
+	glCompileShader(v.tess_control_id);
+
+	glGetShaderiv(v.tess_control_id, GL_COMPILE_STATUS, &status);
+	if (status == GL_FALSE) {
+		// error compiling
+		GLsizei iloglen;
+		glGetShaderiv(v.tess_control_id, GL_INFO_LOG_LENGTH, &iloglen);
+
+		if (iloglen < 0) {
+
+			glDeleteShader(v.tess_control_id);
+			glDeleteProgram(v.id);
+			v.id = 0;
+
+			ERR_PRINT("Tess control shader compilation failed with empty log");
+		} else {
+
+			if (iloglen == 0) {
+
+				iloglen = 4096; //buggy driver (Adreno 220+....)
+			}
+
+			char *ilogmem = (char *)memalloc(iloglen + 1);
+			ilogmem[iloglen] = 0;
+			glGetShaderInfoLog(v.tess_control_id, iloglen, &iloglen, ilogmem);
+
+			String err_string = get_shader_name() + ": Tess Program Compilation Failed:\n";
+
+			err_string += ilogmem;
+			_display_error_with_code(err_string, strings);
+			memfree(ilogmem);
+			glDeleteShader(v.tess_control_id);
+			glDeleteProgram(v.id);
+			v.id = 0;
+		}
+
+		ERR_FAIL_V(NULL);
+	}
+
+	strings.resize(strings_base_size);
+
+	/* TESS SHADER */
+	//vertex precision is high
+	strings.push_back("precision highp float;\n");
+	strings.push_back("precision highp int;\n");
+#ifndef GLES_OVER_GL
+	strings.push_back("precision highp sampler2D;\n");
+	strings.push_back("precision highp samplerCube;\n");
+	strings.push_back("precision highp sampler2DArray;\n");
+#endif
+
+	strings.push_back(tess_code0.get_data());
+
+	if (cc) {
+		material_string = cc->uniforms.ascii();
+		strings.push_back(material_string.get_data());
+	}
+
+	strings.push_back(tess_code1.get_data());
+
+	if (cc) {
+		code_globals = cc->tess_globals.ascii();
+		strings.push_back(code_globals.get_data());
+	}
+
+	strings.push_back(tess_code2.get_data());
+
+	if (cc) {
+		code_string = cc->tess.ascii();
+		strings.push_back(code_string.get_data());
+	}
+
+	strings.push_back(tess_code3.get_data());
+#ifdef DEBUG_SHADER
+
+	DEBUG_PRINT("\nTess Code:\n\n" + String(code_string.get_data()));
+	for (int i = 0; i < strings.size(); i++) {
+
+		//print_line("vert strings "+itos(i)+":"+String(strings[i]));
+	}
+#endif
+
+	v.tess_id = glCreateShader(GL_TESS_EVALUATION_SHADER);
+	glShaderSource(v.tess_id, strings.size(), &strings[0], NULL);
+	glCompileShader(v.tess_id);
+
+	glGetShaderiv(v.tess_id, GL_COMPILE_STATUS, &status);
+	if (status == GL_FALSE) {
+		// error compiling
+		GLsizei iloglen;
+		glGetShaderiv(v.tess_id, GL_INFO_LOG_LENGTH, &iloglen);
+
+		if (iloglen < 0) {
+
+			glDeleteShader(v.tess_id);
+			glDeleteProgram(v.id);
+			v.id = 0;
+
+			ERR_PRINT("Tess shader compilation failed with empty log");
+		} else {
+
+			if (iloglen == 0) {
+
+				iloglen = 4096; //buggy driver (Adreno 220+....)
+			}
+
+			char *ilogmem = (char *)memalloc(iloglen + 1);
+			ilogmem[iloglen] = 0;
+			glGetShaderInfoLog(v.tess_id, iloglen, &iloglen, ilogmem);
+
+			String err_string = get_shader_name() + ": Tess Program Compilation Failed:\n";
+
+			err_string += ilogmem;
+			_display_error_with_code(err_string, strings);
+			memfree(ilogmem);
+			glDeleteShader(v.tess_id);
+			glDeleteProgram(v.id);
+			v.id = 0;
+		}
+
+		ERR_FAIL_V(NULL);
+	}
+
+
+
 	//_display_error_with_code("pepo", strings);
 
 	/* FRAGMENT SHADER */
@@ -348,6 +524,7 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 	strings.push_back(fragment_code0.get_data());
 	if (cc) {
 		material_string = cc->uniforms.ascii();
+
 		strings.push_back(material_string.get_data());
 	}
 
@@ -395,6 +572,12 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 		if (iloglen < 0) {
 			glDeleteShader(v.frag_id);
 			glDeleteShader(v.vert_id);
+
+			if (isTessellationActive) {
+				glDeleteShader(v.tess_id);
+				glDeleteShader(v.tess_control_id);
+			}
+
 			glDeleteProgram(v.id);
 			v.id = 0;
 			ERR_PRINT("Fragment shader compilation failed with empty log");
@@ -415,6 +598,10 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 			memfree(ilogmem);
 			glDeleteShader(v.frag_id);
 			glDeleteShader(v.vert_id);
+			if (isTessellationActive) {
+				glDeleteShader(v.tess_id);
+				glDeleteShader(v.tess_control_id);
+			}
 			glDeleteProgram(v.id);
 			v.id = 0;
 		}
@@ -422,7 +609,21 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 		ERR_FAIL_V(nullptr);
 	}
 
+
+
 	glAttachShader(v.id, v.frag_id);
+
+	if (isTessellationActive) {
+		String testCodeControLShader = tess_control_code;
+		if (!testCodeControLShader.empty()) {
+			glAttachShader(v.id, v.tess_control_id);
+		}
+		String tstCodeTeShader = tess_code;
+		if (!tstCodeTeShader.empty()) {
+			glAttachShader(v.id, v.tess_id);
+		}
+	}
+
 	glAttachShader(v.id, v.vert_id);
 
 	// bind attributes before linking
@@ -457,6 +658,8 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 
 		if (iloglen < 0) {
 			glDeleteShader(v.frag_id);
+			glDeleteShader(v.tess_id);
+			glDeleteShader(v.tess_control_id);
 			glDeleteShader(v.vert_id);
 			glDeleteProgram(v.id);
 			v.id = 0;
@@ -479,6 +682,8 @@ ShaderGLES3::Version *ShaderGLES3::get_current_version() {
 		Memory::free_static(ilogmem);
 		glDeleteShader(v.frag_id);
 		glDeleteShader(v.vert_id);
+		glDeleteShader(v.tess_id);
+		glDeleteShader(v.tess_control_id);
 		glDeleteProgram(v.id);
 		v.id = 0;
 
@@ -538,7 +743,8 @@ GLint ShaderGLES3::get_uniform_location(const String &p_name) const {
 	return glGetUniformLocation(version->id, p_name.ascii().get_data());
 }
 
-void ShaderGLES3::setup(const char **p_conditional_defines, int p_conditional_count, const char **p_uniform_names, int p_uniform_count, const AttributePair *p_attribute_pairs, int p_attribute_count, const TexUnitPair *p_texunit_pairs, int p_texunit_pair_count, const UBOPair *p_ubo_pairs, int p_ubo_pair_count, const Feedback *p_feedback, int p_feedback_count, const char *p_vertex_code, const char *p_fragment_code, int p_vertex_code_start, int p_fragment_code_start) {
+void ShaderGLES3::setup(const char **p_conditional_defines, int p_conditional_count, const char **p_uniform_names, int p_uniform_count, const AttributePair *p_attribute_pairs, int p_attribute_count, const TexUnitPair *p_texunit_pairs, int p_texunit_pair_count, const UBOPair *p_ubo_pairs, int p_ubo_pair_count, const Feedback *p_feedback, int p_feedback_count, const char *p_vertex_code, const char *p_fragment_code, const char *p_tess_code, const char *p_tess_control_code, int p_vertex_code_start, int p_fragment_code_start, int p_tess_code_start, int p_tess_control_code_start) {
+
 	ERR_FAIL_COND(version);
 	conditional_version.key = 0;
 	new_conditional_version.key = 0;
@@ -548,10 +754,14 @@ void ShaderGLES3::setup(const char **p_conditional_defines, int p_conditional_co
 	uniform_names = p_uniform_names;
 	vertex_code = p_vertex_code;
 	fragment_code = p_fragment_code;
+	tess_code = p_tess_code;
+	tess_control_code = p_tess_control_code;
 	texunit_pairs = p_texunit_pairs;
 	texunit_pair_count = p_texunit_pair_count;
 	vertex_code_start = p_vertex_code_start;
 	fragment_code_start = p_fragment_code_start;
+	tess_code_start = p_tess_code_start;
+	tess_control_code_start = p_tess_control_code_start;
 	attribute_pairs = p_attribute_pairs;
 	attribute_pair_count = p_attribute_count;
 	ubo_pairs = p_ubo_pairs;
@@ -586,6 +796,75 @@ void ShaderGLES3::setup(const char **p_conditional_defines, int p_conditional_co
 				} else {
 					vertex_code2 = code2.substr(0, cpos).ascii();
 					vertex_code3 = code2.substr(cpos + code_tag.length(), code2.length()).ascii();
+				}
+			}
+		}
+	}
+
+	//split vertex and shader code (thank you, shader compiler programmers from you know what company).
+	{
+		String globals_tag = "\nTESS_SHADER_GLOBALS";
+		String material_tag = "\nMATERIAL_UNIFORMS";
+		String code_tag = "\nTESS_SHADER_CODE";
+		String code = tess_code;
+		int cpos = code.find(material_tag);
+		if (cpos == -1) {
+			tess_code0 = code.ascii();
+		} else {
+			tess_code0 = code.substr(0, cpos).ascii();
+			code = code.substr(cpos + material_tag.length(), code.length());
+
+			cpos = code.find(globals_tag);
+
+			if (cpos == -1) {
+				tess_code1 = code.ascii();
+			} else {
+
+				tess_code1 = code.substr(0, cpos).ascii();
+				String code2 = code.substr(cpos + globals_tag.length(), code.length());
+
+				cpos = code2.find(code_tag);
+				if (cpos == -1) {
+					tess_code2 = code2.ascii();
+				} else {
+
+					tess_code2 = code2.substr(0, cpos).ascii();
+					tess_code3 = code2.substr(cpos + code_tag.length(), code2.length()).ascii();
+				}
+			}
+		}
+	}
+
+
+	//split vertex and shader code (thank you, shader compiler programmers from you know what company).
+	{
+		String globals_tag = "\nTESS_CONTROL_SHADER_GLOBALS";
+		String material_tag = "\nMATERIAL_UNIFORMS";
+		String code_tag = "\nTESS_CONTROL_SHADER_CODE";
+		String code = tess_control_code;
+		int cpos = code.find(material_tag);
+		if (cpos == -1) {
+			tess_control_code0 = code.ascii();
+		} else {
+			tess_control_code0 = code.substr(0, cpos).ascii();
+			code = code.substr(cpos + material_tag.length(), code.length());
+
+			cpos = code.find(globals_tag);
+
+			if (cpos == -1) {
+				tess_control_code1 = code.ascii();
+			} else {
+
+				tess_control_code1 = code.substr(0, cpos).ascii();
+				String code2 = code.substr(cpos + globals_tag.length(), code.length());
+
+				cpos = code2.find(code_tag);
+				if (cpos == -1) {
+					tess_control_code2 = code2.ascii();
+				} else {
+
+					tess_control_code2 = code2.substr(0, cpos).ascii();
+					tess_control_code3 = code2.substr(cpos + code_tag.length(), code2.length()).ascii();
 				}
 			}
 		}
@@ -637,6 +916,8 @@ void ShaderGLES3::setup(const char **p_conditional_defines, int p_conditional_co
 		}
 	}
 
+
+
 	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &max_image_units);
 }
 
@@ -646,6 +927,8 @@ void ShaderGLES3::finish() {
 		Version &v = version_map[*V];
 		glDeleteShader(v.vert_id);
 		glDeleteShader(v.frag_id);
+		glDeleteShader(v.tess_id);
+		glDeleteShader(v.tess_control_id);
 		glDeleteProgram(v.id);
 		memdelete_arr(v.uniform_location);
 	}
@@ -657,6 +940,8 @@ void ShaderGLES3::clear_caches() {
 		Version &v = version_map[*V];
 		glDeleteShader(v.vert_id);
 		glDeleteShader(v.frag_id);
+		glDeleteShader(v.tess_id);
+		glDeleteShader(v.tess_control_id);
 		glDeleteProgram(v.id);
 		memdelete_arr(v.uniform_location);
 	}
@@ -675,14 +960,23 @@ uint32_t ShaderGLES3::create_custom_shader() {
 	return last_custom_code++;
 }
 
-void ShaderGLES3::set_custom_shader_code(uint32_t p_code_id, const String &p_vertex, const String &p_vertex_globals, const String &p_fragment, const String &p_light, const String &p_fragment_globals, const String &p_uniforms, const Vector<StringName> &p_texture_uniforms, const Vector<CharString> &p_custom_defines) {
+void ShaderGLES3::set_custom_shader_code(uint32_t p_code_id, const String &p_vertex, const String &p_vertex_globals, const String &p_fragment, const String &p_light, const String &p_fragment_globals, const String &p_tess, const String &p_tess_globals, const String &p_tess_control, const String &p_tess_control_globals, const String &p_uniforms, const Vector<StringName> &p_texture_uniforms, const Vector<CharString> &p_custom_defines) {
+
 	ERR_FAIL_COND(!custom_code_map.has(p_code_id));
 	CustomCode *cc = &custom_code_map[p_code_id];
 
 	cc->vertex = p_vertex;
 	cc->vertex_globals = p_vertex_globals;
+
+	cc->tess = p_tess;
+	cc->tess_globals = p_tess_globals;
+
+	cc->tess_control = p_tess_control;
+	cc->tess_control_globals = p_tess_control_globals;
+
 	cc->fragment = p_fragment;
 	cc->fragment_globals = p_fragment_globals;
+
 	cc->light = p_light;
 	cc->texture_uniforms = p_texture_uniforms;
 	cc->uniforms = p_uniforms;
@@ -709,6 +1003,8 @@ void ShaderGLES3::free_custom_shader(uint32_t p_code_id) {
 		Version &v = version_map[key];
 
 		glDeleteShader(v.vert_id);
+		glDeleteShader(v.tess_id);
+		glDeleteShader(v.tess_control_id);
 		glDeleteShader(v.frag_id);
 		glDeleteProgram(v.id);
 		memdelete_arr(v.uniform_location);
