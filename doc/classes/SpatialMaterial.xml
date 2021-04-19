@@ -201,6 +201,9 @@
 		<member name="flags_no_depth_test" type="bool" setter="set_flag" getter="get_flag" default="false">
 			If [code]true[/code], depth testing is disabled and the object will be drawn in render order.
 		</member>
+		<member name="flags_use_tessellation" type="bool" setter="set_flag" getter="get_flag" default="false">
+					If [code]true[/code], tessellation is used
+		</member>
 		<member name="flags_transparent" type="bool" setter="set_feature" getter="get_feature" default="false">
 			If [code]true[/code], transparency is enabled on the body. See also [member params_blend_mode].
 		</member>
@@ -437,7 +440,10 @@
 		<constant name="TEXTURE_DETAIL_NORMAL" value="15" enum="TextureParam">
 			Texture specifying per-pixel detail normal.
 		</constant>
-		<constant name="TEXTURE_MAX" value="16" enum="TextureParam">
+		<constant name="TEXTURE_TESS" value="16" enum="TextureParam">
+			Texture specifying per-pixel detail normal.
+		</constant>
+		<constant name="TEXTURE_MAX" value="17" enum="TextureParam">
 			Represents the size of the [enum TextureParam] enum.
 		</constant>
 		<constant name="DETAIL_UV_1" value="0" enum="DetailUV">

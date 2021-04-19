@@ -144,10 +144,12 @@ Error RasterizerGLES3::is_viable() {
 
 // GLVersion seems to be used for both GL and GL ES, so we need different version checks for them
 #ifdef OPENGL_ENABLED // OpenGL 3.3 Core Profile required
-	if (GLVersion.major < 3 || (GLVersion.major == 3 && GLVersion.minor < 3)) {
+	if (GLVersion.major < 4 || (GLVersion.major == 4 && GLVersion.minor < 6)) {
 #else // OpenGL ES 3.0
-	if (GLVersion.major < 3) {
+	if (GLVersion.major < 4) {
 #endif
+		print_line("OpenGL 4 not supported!");
+
 		return ERR_UNAVAILABLE;
 	}
 
@@ -185,7 +187,41 @@ void RasterizerGLES3::initialize() {
 	}
 	*/
 
-	print_line("OpenGL ES 3.0 Renderer: " + VisualServer::get_singleton()->get_video_adapter_name());
+#ifdef GLES_OVER_GL
+	//Test GL_ARB_framebuffer_object extension
+	if (!GLAD_GL_ARB_tessellation_shader) {
+		//Try older GL_EXT_framebuffer_object extension
+		if (GLAD_GL_EXT_tessellation_shader) {
+			glIsRenderbuffer = glIsRenderbufferEXT;
+			glBindRenderbuffer = glBindRenderbufferEXT;
+			glDeleteRenderbuffers = glDeleteRenderbuffersEXT;
+			glGenRenderbuffers = glGenRenderbuffersEXT;
+			glRenderbufferStorage = glRenderbufferStorageEXT;
+			glGetRenderbufferParameteriv = glGetRenderbufferParameterivEXT;
+			glIsFramebuffer = glIsFramebufferEXT;
+			glBindFramebuffer = glBindFramebufferEXT;
+			glDeleteFramebuffers = glDeleteFramebuffersEXT;
+			glGenFramebuffers = glGenFramebuffersEXT;
+			glCheckFramebufferStatus = glCheckFramebufferStatusEXT;
+			glFramebufferTexture1D = glFramebufferTexture1DEXT;
+			glFramebufferTexture2D = glFramebufferTexture2DEXT;
+			glFramebufferTexture3D = glFramebufferTexture3DEXT;
+			glFramebufferRenderbuffer = glFramebufferRenderbufferEXT;
+			glGetFramebufferAttachmentParameteriv = glGetFramebufferAttachmentParameterivEXT;
+			glGenerateMipmap = glGenerateMipmapEXT;
+		} else {
+			print_line("OpenGL TES Extension not found!");
+		}
+	}
+
+	if (GLAD_GL_EXT_tessellation_shader) {
+		glRenderbufferStorageMultisample = glRenderbufferStorageMultisampleEXT;
+	}
+#endif // GLES_OVER_GL
+	print_line("OpenGL Renderer: " + VisualServer::get_singleton()->get_video_adapter_name());
+	print_line("OpenGL Major " + itos(GLVersion.major));
+	print_line("OpenGL Minor " + itos(GLVersion.minor));
+
 	storage->initialize();
 	canvas->initialize();
 	scene->initialize();
@@ -439,6 +475,11 @@ void RasterizerGLES3::make_current() {
 }
 
 void RasterizerGLES3::register_config() {
+	GLOBAL_DEF("rendering/quality/filters/anisotropic_filter_level", 4);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/filters/anisotropic_filter_level", PropertyInfo(Variant::INT, "rendering/quality/filters/anisotropic_filter_level", PROPERTY_HINT_RANGE, "1,16,1"));
+
+	GLOBAL_DEF("rendering/quality/filters/tess_level", 60);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/filters/tess_level", PropertyInfo(Variant::INT, "rendering/quality/filters/tess_level", PROPERTY_HINT_RANGE, "1,60,1"));
 }
 
 bool RasterizerGLES3::gl_check_errors() {

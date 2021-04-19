@@ -1525,7 +1525,7 @@ void RasterizerStorageGLES2::_update_shader(Shader *p_shader) const {
 		return;
 	}
 
-	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.custom_defines);
+	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.tess, gen_code.tess_global, gen_code.tess_control, gen_code.tess_control_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.custom_defines);
 
 	p_shader->texture_count = gen_code.texture_uniforms.size();
 	p_shader->texture_hints = gen_code.texture_hints;
@@ -6676,7 +6676,7 @@ void RasterizerStorageGLES2::initialize() {
 	if (config.extensions.has("GL_ARB_seamless_cube_map")) {
 		glEnable(_EXT_TEXTURE_CUBE_MAP_SEAMLESS);
 	}
-	glEnable(GL_POINT_SPRITE);
+	//NOT AVAIBLE ON CORE!!!!	glEnable(GL_POINT_SPRITE);
 	glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 #endif
 

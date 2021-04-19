@@ -1,5 +1,5 @@
-short_name = "godot"
-name = "Godot Engine"
+short_name = "goodot-GL46"
+name = "Goodot Engine GL46"
 major = 3
 minor = 6
 patch = 0

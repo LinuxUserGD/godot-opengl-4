@@ -1701,6 +1701,9 @@
 			[b]Note:[/b] For performance reasons, anisotropic filtering [i]is not enabled by default[/i] on textures. For this setting to have an effect, anisotropic texture filtering can be enabled by selecting a texture in the FileSystem dock, going to the Import dock, checking the [b]Anisotropic[/b] checkbox then clicking [b]Reimport[/b]. However, anisotropic filtering is rarely useful in 2D, so only enable it for textures in 2D if it makes a meaningful visual difference.
 			[b]Note:[/b] This property is only read when the project starts. There is currently no way to change this setting at run-time.
 		</member>
+		<member name="rendering/quality/filters/tess_level" type="int" setter="" getter="" default="4">
+			Tess level max 60
+		</member>
 		<member name="rendering/quality/filters/msaa" type="int" setter="" getter="" default="0">
 			Sets the number of MSAA samples to use. MSAA is used to reduce aliasing around the edges of polygons. A higher MSAA value results in smoother edges but can be significantly slower on some hardware.
 			[b]Note:[/b] MSAA is not available on HTML5 export using the GLES2 backend.

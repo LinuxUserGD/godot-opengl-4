@@ -484,8 +484,12 @@ void ShaderGLES2::setup(
 		int p_texunit_pair_count,
 		const char *p_vertex_code,
 		const char *p_fragment_code,
+		const char *p_tess_code,
+		const char *p_tess_control_code,
 		int p_vertex_code_start,
-		int p_fragment_code_start) {
+		int p_fragment_code_start,
+		int p_tess_code_start,
+		int p_tess_cotrol_code_start) {
 	ERR_FAIL_COND(version);
 
 	memset(conditional_version.key, 0, sizeof(conditional_version.key));
@@ -496,10 +500,14 @@ void ShaderGLES2::setup(
 	uniform_names = p_uniform_names;
 	vertex_code = p_vertex_code;
 	fragment_code = p_fragment_code;
+	tess_code = p_tess_code;
+	tess_control_code = p_tess_control_code;
 	texunit_pairs = p_texunit_pairs;
 	texunit_pair_count = p_texunit_pair_count;
 	vertex_code_start = p_vertex_code_start;
 	fragment_code_start = p_fragment_code_start;
+	tess_code_start = p_tess_code_start;
+	tess_control_code_start = p_tess_cotrol_code_start;
 	attribute_pairs = p_attribute_pairs;
 	attribute_pair_count = p_attribute_count;
 
@@ -604,6 +612,10 @@ void ShaderGLES2::set_custom_shader_code(uint32_t p_code_id,
 		const String &p_fragment,
 		const String &p_light,
 		const String &p_fragment_globals,
+		const String &p_tess,
+		const String &p_tess_globals,
+		const String &p_tess_control,
+		const String &p_tess_control_globals,
 		const Vector<StringName> &p_uniforms,
 		const Vector<StringName> &p_texture_uniforms,
 		const Vector<CharString> &p_custom_defines) {
@@ -614,6 +626,13 @@ void ShaderGLES2::set_custom_shader_code(uint32_t p_code_id,
 	cc->vertex_globals = p_vertex_globals;
 	cc->fragment = p_fragment;
 	cc->fragment_globals = p_fragment_globals;
+
+	cc->tess = p_tess;
+	cc->tess_globals = p_tess_globals;
+
+	cc->tess_control = p_tess_control;
+	cc->tess_control_globals = p_tess_control_globals;
+
 	cc->light = p_light;
 	cc->custom_uniforms = p_uniforms;
 	cc->custom_defines = p_custom_defines;

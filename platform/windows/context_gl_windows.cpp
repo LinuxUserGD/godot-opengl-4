@@ -42,6 +42,7 @@
 #define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB 0x00000002
 #define WGL_CONTEXT_PROFILE_MASK_ARB 0x9126
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB 0x00000001
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
 
 #if defined(__GNUC__)
 // Workaround GCC warning from -Wcast-function-type.
@@ -187,11 +188,11 @@ Error ContextGL_Windows::initialize() {
 
 	if (opengl_3_context) {
 		int attribs[] = {
-			WGL_CONTEXT_MAJOR_VERSION_ARB, 3, //we want a 3.3 context
-			WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+			WGL_CONTEXT_MAJOR_VERSION_ARB, 4, //we want a 3.3 context
+			WGL_CONTEXT_MINOR_VERSION_ARB, 6,
 			//and it shall be forward compatible so that we can only use up to date functionality
 			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-			WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB /*| _WGL_CONTEXT_DEBUG_BIT_ARB*/,
+			/*WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB| _WGL_CONTEXT_DEBUG_BIT_ARB*/
 			0
 		}; //zero indicates the end of the array
 

@@ -89,6 +89,8 @@ private:
 	int conditional_count;
 	int vertex_code_start;
 	int fragment_code_start;
+	int tess_code_start;
+	int tess_control_code_start;
 	int attribute_pair_count;
 
 	struct CustomCode {
@@ -96,6 +98,10 @@ private:
 		String vertex_globals;
 		String fragment;
 		String fragment_globals;
+		String tess;
+		String tess_globals;
+		String tess_control;
+		String tess_control_globals;
 		String light;
 		uint32_t version;
 		Vector<StringName> texture_uniforms;
@@ -154,8 +160,13 @@ private:
 	const char **uniform_names;
 	const AttributePair *attribute_pairs;
 	const TexUnitPair *texunit_pairs;
+
 	const char *vertex_code;
 	const char *fragment_code;
+
+	const char *tess_code;
+	const char *tess_control_code;
+
 	CharString fragment_code0;
 	CharString fragment_code1;
 	CharString fragment_code2;
@@ -164,6 +175,14 @@ private:
 	CharString vertex_code0;
 	CharString vertex_code1;
 	CharString vertex_code2;
+
+	CharString tess_code0;
+	CharString tess_code1;
+	CharString tess_code2;
+
+	CharString tess_control_code0;
+	CharString tess_control_code1;
+	CharString tess_control_code2;
 
 	Vector<CharString> custom_defines;
 
@@ -189,8 +208,12 @@ protected:
 			int p_texunit_pair_count,
 			const char *p_vertex_code,
 			const char *p_fragment_code,
+			const char *p_tess_code,
+			const char *p_tess_control_code,
 			int p_vertex_code_start,
-			int p_fragment_code_start);
+			int p_fragment_code_start,
+			int p_tess_code_start,
+			int p_tess_control_code_start);
 
 	ShaderGLES2();
 
@@ -217,6 +240,10 @@ public:
 			const String &p_fragment,
 			const String &p_light,
 			const String &p_fragment_globals,
+			const String &p_tess,
+			const String &p_tess_globals,
+			const String &p_tess_control,
+			const String &p_tess_control_globals,
 			const Vector<StringName> &p_uniforms,
 			const Vector<StringName> &p_texture_uniforms,
 			const Vector<CharString> &p_custom_defines);
