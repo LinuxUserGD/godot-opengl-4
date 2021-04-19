@@ -60,10 +60,17 @@ public:
 		String vertex;
 		String fragment_global;
 		String fragment;
+		String tess_global;
+		String tess;
+		String tess_control_global;
+		String tess_control;
 		String light;
 
 		bool uses_fragment_time;
 		bool uses_vertex_time;
+
+		bool uses_tess_time;
+		bool uses_tess_control_time;
 	};
 
 private:
@@ -85,6 +92,8 @@ private:
 	StringName fragment_name;
 	StringName light_name;
 	StringName time_name;
+	StringName tess_name;
+	StringName tess_control_name;
 
 	Set<StringName> used_name_defines;
 	Set<StringName> used_flag_pointers;
