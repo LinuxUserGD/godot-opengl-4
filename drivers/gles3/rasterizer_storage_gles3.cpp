@@ -84,6 +84,7 @@
 
 #define _GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
 #define _GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+#define _GL_MAX_TESS_GEN_LEVEL 0x8E7E
 
 #define _EXT_COMPRESSED_R11_EAC 0x9270
 #define _EXT_COMPRESSED_SIGNED_R11_EAC 0x9271
@@ -2336,6 +2337,7 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 			p_shader->spatial.uses_discard = false;
 			p_shader->spatial.unshaded = false;
 			p_shader->spatial.no_depth_test = false;
+			p_shader->spatial.use_tessellation = false;
 			p_shader->spatial.uses_sss = false;
 			p_shader->spatial.uses_time = false;
 			p_shader->spatial.uses_vertex_lighting = false;
@@ -2361,6 +2363,7 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 
 			shaders.actions_scene.render_mode_flags["unshaded"] = &p_shader->spatial.unshaded;
 			shaders.actions_scene.render_mode_flags["depth_test_disable"] = &p_shader->spatial.no_depth_test;
+			shaders.actions_scene.render_mode_flags["use_tessellation"] = &p_shader->spatial.use_tessellation;
 
 			shaders.actions_scene.render_mode_flags["vertex_lighting"] = &p_shader->spatial.uses_vertex_lighting;
 
@@ -2397,7 +2400,7 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 		return;
 	}
 
-	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.defines);
+	p_shader->shader->set_custom_shader_code(p_shader->custom_code_id, gen_code.vertex, gen_code.vertex_global, gen_code.fragment, gen_code.light, gen_code.fragment_global, gen_code.tess, gen_code.tess_global, gen_code.tess_control, gen_code.tess_control_global, gen_code.uniforms, gen_code.texture_uniforms, gen_code.defines);
 
 	p_shader->ubo_size = gen_code.uniform_total_size;
 	p_shader->ubo_offsets = gen_code.uniform_offsets;
@@ -2407,6 +2410,9 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 
 	p_shader->uses_vertex_time = gen_code.uses_vertex_time;
 	p_shader->uses_fragment_time = gen_code.uses_fragment_time;
+
+	p_shader->uses_tess_control_time = gen_code.uses_tess_control_time;
+	p_shader->uses_tess_time = gen_code.uses_tess_time;
 
 	//all materials using this shader will have to be invalidated, unfortunately
 
@@ -3267,6 +3273,14 @@ void RasterizerStorageGLES3::_update_material(Material *material) {
 			}
 
 			if (material->shader->spatial.uses_vertex && material->shader->uses_vertex_time) {
+				is_animated = true;
+			}
+
+			if (material->shader->spatial.uses_vertex && material->shader->uses_tess_time) {
+				is_animated = true;
+			}
+
+			if (material->shader->spatial.uses_vertex && material->shader->uses_tess_control_time) {
 				is_animated = true;
 			}
 
@@ -8252,6 +8266,7 @@ void RasterizerStorageGLES3::initialize() {
 	config.shrink_textures_x2 = false;
 	config.use_fast_texture_filter = int(ProjectSettings::get_singleton()->get("rendering/quality/filters/use_nearest_mipmap_filter"));
 	config.use_anisotropic_filter = config.extensions.has("rendering/quality/filters/anisotropic_filter_level");
+	config.use_tess_filter = config.extensions.has("rendering/quality/filters/tess_level");
 
 	config.etc_supported = config.extensions.has("GL_OES_compressed_ETC1_RGB8_texture");
 	config.latc_supported = config.extensions.has("GL_EXT_texture_compression_latc");
@@ -8277,12 +8292,19 @@ void RasterizerStorageGLES3::initialize() {
 	config.pvrtc_supported = config.extensions.has("GL_IMG_texture_compression_pvrtc");
 	config.srgb_decode_supported = config.extensions.has("GL_EXT_texture_sRGB_decode");
 
+	config.use_tess_filter = 60.0;
 	config.anisotropic_level = 1.0;
 	config.use_anisotropic_filter = config.extensions.has("GL_EXT_texture_filter_anisotropic");
 	if (config.use_anisotropic_filter) {
 		glGetFloatv(_GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &config.anisotropic_level);
 		config.anisotropic_level = MIN(int(ProjectSettings::get_singleton()->get("rendering/quality/filters/anisotropic_filter_level")), config.anisotropic_level);
 	}
+	config.use_tess_filter = config.extensions.has("GL_ARB_tessellation_shader");
+	if (config.use_tess_filter) {
+		glGetFloatv(_GL_MAX_TESS_GEN_LEVEL, &config.tess_level);
+		config.tess_level = MIN(int(ProjectSettings::get_singleton()->get("rendering/quality/filters/tess_level")), config.tess_level);
+	}
+
 
 	frame.clear_request = false;
 
