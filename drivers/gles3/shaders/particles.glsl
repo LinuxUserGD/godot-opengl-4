@@ -1,4 +1,5 @@
 /* clang-format off */
+
 [vertex]
 
 layout(location = 0) in highp vec4 color;

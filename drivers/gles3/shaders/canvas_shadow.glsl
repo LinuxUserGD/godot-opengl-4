@@ -1,4 +1,5 @@
 /* clang-format off */
+
 [vertex]
 
 uniform highp mat4 projection_matrix;

@@ -73,6 +73,7 @@ public:
 		bool shrink_textures_x2;
 		bool use_fast_texture_filter;
 		bool use_anisotropic_filter;
+		bool use_tess_filter;
 
 		bool s3tc_supported;
 		bool latc_supported;
@@ -91,6 +92,8 @@ public:
 		bool use_rgba_2d_shadows;
 
 		float anisotropic_level;
+
+		float tess_level;
 
 		int max_texture_image_units;
 		int max_texture_size;
@@ -498,6 +501,7 @@ public:
 			bool uses_sss;
 			bool uses_screen_texture;
 			bool uses_depth_texture;
+			bool use_tessellation;
 			bool uses_time;
 			bool writes_modelview_or_projection;
 			bool uses_vertex_lighting;
@@ -511,6 +515,8 @@ public:
 
 		bool uses_vertex_time;
 		bool uses_fragment_time;
+		bool uses_tess_time;
+		bool uses_tess_control_time;
 
 		Shader() :
 				dirty_list(this) {

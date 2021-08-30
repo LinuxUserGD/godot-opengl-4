@@ -382,6 +382,8 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				if (SL::is_sampler_type(E->get().type)) {
 					r_gen_code.vertex_global += ucode;
 					r_gen_code.fragment_global += ucode;
+					r_gen_code.tess_global += ucode;
+					r_gen_code.tess_control_global += ucode;
 					r_gen_code.texture_uniforms.write[E->get().texture_order] = _mkid(E->key());
 					r_gen_code.texture_hints.write[E->get().texture_order] = E->get().hint;
 					r_gen_code.texture_types.write[E->get().texture_order] = E->get().type;
@@ -438,6 +440,8 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				vcode += ";\n";
 				r_gen_code.vertex_global += interp_mode + "out " + vcode;
 				r_gen_code.fragment_global += interp_mode + "in " + vcode;
+				r_gen_code.tess_global += interp_mode + "out " + vcode;
+				r_gen_code.tess_control_global += interp_mode + "in " + vcode;
 			}
 
 			for (int i = 0; i < pnode->vconstants.size(); i++) {
@@ -451,6 +455,8 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				gcode += ";\n";
 				r_gen_code.vertex_global += gcode;
 				r_gen_code.fragment_global += gcode;
+				r_gen_code.tess_global += gcode;
+				r_gen_code.tess_control_global += gcode;
 			}
 
 			Map<StringName, String> function_code;
@@ -466,6 +472,8 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 
 			Set<StringName> added_vtx;
 			Set<StringName> added_fragment; //share for light
+			Set<StringName> added_tess; //share for light
+			Set<StringName> added_tess_control; //share for light
 
 			for (int i = 0; i < pnode->functions.size(); i++) {
 
@@ -489,6 +497,18 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 
 					_dump_function_deps(pnode, fnode->name, function_code, r_gen_code.fragment_global, added_fragment);
 					r_gen_code.light = function_code[light_name];
+				}
+
+				if (fnode->name == tess_name) {
+
+					_dump_function_deps(pnode, fnode->name, function_code, r_gen_code.tess_global, added_tess);
+					r_gen_code.tess = function_code[tess_name];
+				}
+
+				if (fnode->name == tess_control_name) {
+
+					_dump_function_deps(pnode, fnode->name, function_code, r_gen_code.tess_control_global, added_tess_control);
+					r_gen_code.tess_control = function_code[tess_control_name];
 				}
 			}
 
@@ -577,6 +597,12 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				if (current_func_name == fragment_name || current_func_name == light_name) {
 					r_gen_code.uses_fragment_time = true;
 				}
+				if (current_func_name == tess_name) {
+					r_gen_code.uses_tess_time = true;
+				}
+				if (current_func_name == tess_control_name) {
+					r_gen_code.uses_tess_control_time = true;
+				}
 			}
 
 		} break;
@@ -663,6 +689,13 @@ String ShaderCompilerGLES3::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				}
 				if (current_func_name == fragment_name || current_func_name == light_name) {
 					r_gen_code.uses_fragment_time = true;
+				}
+
+				if (current_func_name == tess_name) {
+					r_gen_code.uses_tess_time = true;
+				}
+				if (current_func_name == tess_control_name) {
+					r_gen_code.uses_tess_control_time = true;
 				}
 			}
 
@@ -857,6 +890,8 @@ Error ShaderCompilerGLES3::compile(VS::ShaderMode p_mode, const String &p_code, 
 	r_gen_code.light = String();
 	r_gen_code.uses_fragment_time = false;
 	r_gen_code.uses_vertex_time = false;
+	r_gen_code.uses_tess_control_time = false;
+	r_gen_code.uses_tess_time = false;
 
 	used_name_defines.clear();
 	used_rmode_defines.clear();
@@ -960,6 +995,10 @@ ShaderCompilerGLES3::ShaderCompilerGLES3() {
 	actions[VS::SHADER_SPATIAL].renames["RIM"] = "rim";
 	actions[VS::SHADER_SPATIAL].renames["RIM_TINT"] = "rim_tint";
 	actions[VS::SHADER_SPATIAL].renames["CLEARCOAT"] = "clearcoat";
+	actions[VS::SHADER_SPATIAL].renames["TESS"] = "tess";
+	actions[VS::SHADER_SPATIAL].renames["TESS_UV"] = "tess_uv";
+	actions[VS::SHADER_SPATIAL].renames["TESS_LEVEL"] = "tess_level";
+	actions[VS::SHADER_SPATIAL].renames["TESS_TEXTURE"] = "tess_texture";
 	actions[VS::SHADER_SPATIAL].renames["CLEARCOAT_GLOSS"] = "clearcoat_gloss";
 	actions[VS::SHADER_SPATIAL].renames["ANISOTROPY"] = "anisotropy";
 	actions[VS::SHADER_SPATIAL].renames["ANISOTROPY_FLOW"] = "anisotropy_flow";
@@ -990,6 +1029,10 @@ ShaderCompilerGLES3::ShaderCompilerGLES3() {
 	actions[VS::SHADER_SPATIAL].usage_defines["RIM"] = "#define LIGHT_USE_RIM\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["RIM_TINT"] = "@RIM";
 	actions[VS::SHADER_SPATIAL].usage_defines["CLEARCOAT"] = "#define LIGHT_USE_CLEARCOAT\n";
+	actions[VS::SHADER_SPATIAL].usage_defines["TESS"] = "#define USE_TESS\n";
+	actions[VS::SHADER_SPATIAL].usage_defines["TESS_UV"] = "@TESS";
+	actions[VS::SHADER_SPATIAL].usage_defines["TESS_LEVEL"] = "@TESS";
+	actions[VS::SHADER_SPATIAL].usage_defines["TESS_TEXTURE"] = "@TESS";
 	actions[VS::SHADER_SPATIAL].usage_defines["CLEARCOAT_GLOSS"] = "@CLEARCOAT";
 	actions[VS::SHADER_SPATIAL].usage_defines["ANISOTROPY"] = "#define LIGHT_USE_ANISOTROPY\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["ANISOTROPY_FLOW"] = "@ANISOTROPY";
@@ -1017,6 +1060,7 @@ ShaderCompilerGLES3::ShaderCompilerGLES3() {
 	actions[VS::SHADER_SPATIAL].render_mode_defines["ensure_correct_normals"] = "#define ENSURE_CORRECT_NORMALS\n";
 	actions[VS::SHADER_SPATIAL].render_mode_defines["cull_front"] = "#define DO_SIDE_CHECK\n";
 	actions[VS::SHADER_SPATIAL].render_mode_defines["cull_disabled"] = "#define DO_SIDE_CHECK\n";
+	actions[VS::SHADER_SPATIAL].render_mode_defines["use_tessellation"] = "#define USE_TESS\n";
 
 	bool force_lambert = GLOBAL_GET("rendering/quality/shading/force_lambert_over_burley");
 
@@ -1068,6 +1112,8 @@ ShaderCompilerGLES3::ShaderCompilerGLES3() {
 
 	vertex_name = "vertex";
 	fragment_name = "fragment";
+	tess_name = "tess";
+	tess_control_name = "tess_control";
 	light_name = "light";
 	time_name = "TIME";
 

@@ -1,4 +1,3 @@
-/* clang-format off */
 [vertex]
 
 layout(location = 0) in highp vec2 vertex;
@@ -460,6 +459,7 @@ void main() {
 		uv = clamp(uv, src_rect.xy, src_rect.xy + abs(src_rect.zw));
 	}
 
+
 #endif
 
 #if !defined(COLOR_USED)
@@ -729,3 +729,4 @@ FRAGMENT_SHADER_CODE
 	//color.rgb *= color.a;
 	frag_color = color;
 }
+

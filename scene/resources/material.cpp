@@ -315,6 +315,8 @@ void SpatialMaterial::init_shaders() {
 	shader_names->rim = "rim";
 	shader_names->rim_tint = "rim_tint";
 	shader_names->clearcoat = "clearcoat";
+	shader_names->tess_level = "tess_level";
+	shader_names->tess_uv = "tess_uv";
 	shader_names->clearcoat_gloss = "clearcoat_gloss";
 	shader_names->anisotropy = "anisotropy_ratio";
 	shader_names->depth_scale = "depth_scale";
@@ -351,6 +353,7 @@ void SpatialMaterial::init_shaders() {
 	shader_names->rim_texture_channel = "rim_texture_channel";
 	shader_names->depth_texture_channel = "depth_texture_channel";
 	shader_names->refraction_texture_channel = "refraction_texture_channel";
+	shader_names->tess_texture_channel = "tess_texture_channel";
 	shader_names->alpha_scissor_threshold = "alpha_scissor_threshold";
 
 	shader_names->texture_names[TEXTURE_ALBEDO] = "texture_albedo";
@@ -360,6 +363,7 @@ void SpatialMaterial::init_shaders() {
 	shader_names->texture_names[TEXTURE_NORMAL] = "texture_normal";
 	shader_names->texture_names[TEXTURE_RIM] = "texture_rim";
 	shader_names->texture_names[TEXTURE_CLEARCOAT] = "texture_clearcoat";
+
 	shader_names->texture_names[TEXTURE_FLOWMAP] = "texture_flowmap";
 	shader_names->texture_names[TEXTURE_AMBIENT_OCCLUSION] = "texture_ambient_occlusion";
 	shader_names->texture_names[TEXTURE_DEPTH] = "texture_depth";
@@ -369,6 +373,7 @@ void SpatialMaterial::init_shaders() {
 	shader_names->texture_names[TEXTURE_DETAIL_MASK] = "texture_detail_mask";
 	shader_names->texture_names[TEXTURE_DETAIL_ALBEDO] = "texture_detail_albedo";
 	shader_names->texture_names[TEXTURE_DETAIL_NORMAL] = "texture_detail_normal";
+	shader_names->texture_names[TEXTURE_TESS] = "texture_tess";
 }
 
 Ref<SpatialMaterial> SpatialMaterial::materials_for_2d[SpatialMaterial::MAX_MATERIALS_FOR_2D];
@@ -463,6 +468,9 @@ void SpatialMaterial::_update_shader() {
 	if (flags[FLAG_DISABLE_DEPTH_TEST]) {
 		code += ",depth_test_disable";
 	}
+	if (flags[FLAG_USE_TESSELLATION]) {
+		code += ",use_tessellation";
+	}
 	if (flags[FLAG_USE_VERTEX_LIGHTING]) {
 		code += ",vertex_lighting";
 	}
@@ -489,6 +497,12 @@ void SpatialMaterial::_update_shader() {
 	code += "uniform float metallic;\n";
 	if (grow_enabled) {
 		code += "uniform float grow;\n";
+	}
+
+	if (features[FEATURE_TESS]) {
+		code += "uniform vec4 tess_level;\n";
+		code += "uniform vec4 tess_uv ;\n";
+		code += "uniform sampler2D texture_tess: hint_white;\n";
 	}
 
 	if (proximity_fade_enabled) {
@@ -542,11 +556,13 @@ void SpatialMaterial::_update_shader() {
 		code += "uniform float rim_tint : hint_range(0,1);\n";
 		code += "uniform sampler2D texture_rim : hint_white;\n";
 	}
+
 	if (features[FEATURE_CLEARCOAT]) {
 		code += "uniform float clearcoat : hint_range(0,1);\n";
 		code += "uniform float clearcoat_gloss : hint_range(0,1);\n";
 		code += "uniform sampler2D texture_clearcoat : hint_white;\n";
 	}
+
 	if (features[FEATURE_ANISOTROPY]) {
 		code += "uniform float anisotropy_ratio : hint_range(0,256);\n";
 		code += "uniform sampler2D texture_flowmap : hint_aniso;\n";
@@ -625,6 +641,11 @@ void SpatialMaterial::_update_shader() {
 
 	if (!flags[FLAG_UV1_USE_TRIPLANAR]) {
 		code += "\tUV=UV*uv1_scale.xy+uv1_offset.xy;\n";
+	}
+
+	if (features[FEATURE_TESS]) 
+	{
+		code += "\tTESS_TEXTURE = texture(texture_tess, UV);\n";
 	}
 
 	switch (billboard_mode) {
@@ -934,6 +955,8 @@ void SpatialMaterial::_update_shader() {
 		}
 	}
 
+
+
 	if (features[FEATURE_RIM]) {
 		if (flags[FLAG_UV1_USE_TRIPLANAR]) {
 			code += "\tvec2 rim_tex = triplanar_texture(texture_rim,uv1_power_normal,uv1_triplanar_pos).xy;\n";
@@ -1048,6 +1071,28 @@ void SpatialMaterial::_update_shader() {
 	}
 
 	code += "}\n";
+
+//	if (flags[FLAG_USE_TESSELLATION]) {
+		code += "void tess() {\n";
+		if (features[FEATURE_TESS]) {
+
+			code += "\tTESS_LEVEL = tess_level;\n";
+			code += "\tTESS_UV = tess_uv;\n";
+		}
+
+		code += "}\n";
+
+		code += "\n\n";
+
+		code += "void tess_control() {\n";
+
+		if (features[FEATURE_TESS]) {
+			code += "\tTESS_LEVEL = tess_level;\n";
+		}
+
+		code += "}\n";
+//	}
+	code += "\n\n";
 
 	ShaderData shader_data;
 	shader_data.shader = VS::get_singleton()->shader_create();
@@ -1223,6 +1268,8 @@ void SpatialMaterial::set_clearcoat_gloss(float p_clearcoat_gloss) {
 	VS::get_singleton()->material_set_param(_get_material(), shader_names->clearcoat_gloss, p_clearcoat_gloss);
 }
 
+//tesseration
+
 float SpatialMaterial::get_clearcoat_gloss() const {
 
 	return clearcoat_gloss;
@@ -1264,6 +1311,29 @@ void SpatialMaterial::set_transmission(const Color &p_transmission) {
 
 	transmission = p_transmission;
 	VS::get_singleton()->material_set_param(_get_material(), shader_names->transmission, transmission);
+}
+
+void SpatialMaterial::set_tess(const Quat &p_tess) {
+
+	tess_level = p_tess;
+	VS::get_singleton()->material_set_param(_get_material(), shader_names->tess_level, p_tess);
+}
+
+Quat SpatialMaterial::get_tess() const {
+
+	return tess_level;
+}
+
+//tesseration
+void SpatialMaterial::set_tess_uv(const Quat &p_tess_uv) {
+
+	tess_uv = p_tess_uv;
+	VS::get_singleton()->material_set_param(_get_material(), shader_names->tess_uv, p_tess_uv);
+}
+
+Quat SpatialMaterial::get_tess_uv() const {
+
+	return tess_uv;
 }
 
 Color SpatialMaterial::get_transmission() const {
@@ -1378,7 +1448,7 @@ void SpatialMaterial::set_flag(Flags p_flag, bool p_enabled) {
 		return;
 
 	flags[p_flag] = p_enabled;
-	if ((p_flag == FLAG_USE_ALPHA_SCISSOR) || (p_flag == FLAG_UNSHADED) || (p_flag == FLAG_USE_SHADOW_TO_OPACITY)) {
+	if ((p_flag == FLAG_USE_ALPHA_SCISSOR) || (p_flag == FLAG_UNSHADED) || (p_flag == FLAG_USE_TESSELLATION) || (p_flag == FLAG_USE_SHADOW_TO_OPACITY)) {
 		_change_notify();
 	}
 	_queue_shader_change();
@@ -1456,6 +1526,7 @@ void SpatialMaterial::_validate_property(PropertyInfo &property) const {
 	_validate_feature("transmission", FEATURE_TRANSMISSION, property);
 	_validate_feature("refraction", FEATURE_REFRACTION, property);
 	_validate_feature("detail", FEATURE_DETAIL, property);
+	_validate_feature("tess", FEATURE_TESS, property);
 
 	_validate_high_end("refraction", property);
 	_validate_high_end("subsurf_scatter", property);
@@ -1960,6 +2031,12 @@ void SpatialMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_clearcoat", "clearcoat"), &SpatialMaterial::set_clearcoat);
 	ClassDB::bind_method(D_METHOD("get_clearcoat"), &SpatialMaterial::get_clearcoat);
 
+	ClassDB::bind_method(D_METHOD("set_tess", "tess_level"), &SpatialMaterial::set_tess);
+	ClassDB::bind_method(D_METHOD("get_tess"), &SpatialMaterial::get_tess);
+
+	ClassDB::bind_method(D_METHOD("set_tess_uv", "tess_uv"), &SpatialMaterial::set_tess_uv);
+	ClassDB::bind_method(D_METHOD("get_tess_uv"), &SpatialMaterial::get_tess_uv);
+
 	ClassDB::bind_method(D_METHOD("set_clearcoat_gloss", "clearcoat_gloss"), &SpatialMaterial::set_clearcoat_gloss);
 	ClassDB::bind_method(D_METHOD("get_clearcoat_gloss"), &SpatialMaterial::get_clearcoat_gloss);
 
@@ -2107,6 +2184,8 @@ void SpatialMaterial::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_unshaded"), "set_flag", "get_flag", FLAG_UNSHADED);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_vertex_lighting"), "set_flag", "get_flag", FLAG_USE_VERTEX_LIGHTING);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_no_depth_test"), "set_flag", "get_flag", FLAG_DISABLE_DEPTH_TEST);
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_use_tessellation"), "set_flag", "get_flag", FLAG_USE_TESSELLATION);
+
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_use_point_size"), "set_flag", "get_flag", FLAG_USE_POINT_SIZE);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_world_triplanar"), "set_flag", "get_flag", FLAG_TRIPLANAR_USE_WORLD);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_fixed_size"), "set_flag", "get_flag", FLAG_FIXED_SIZE);
@@ -2175,7 +2254,13 @@ void SpatialMaterial::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "clearcoat_enabled"), "set_feature", "get_feature", FEATURE_CLEARCOAT);
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "clearcoat", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_clearcoat", "get_clearcoat");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "clearcoat_gloss", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_clearcoat_gloss", "get_clearcoat_gloss");
-	ADD_PROPERTYI(PropertyInfo(Variant::OBJECT, "clearcoat_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture"), "set_texture", "get_texture", TEXTURE_CLEARCOAT);
+	ADD_PROPERTYI(PropertyInfo(Variant::OBJECT, "clearcot_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture"), "set_texture", "get_texture", TEXTURE_CLEARCOAT);
+
+	ADD_GROUP("Tess", "tess_");
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "tess_enabled"), "set_feature", "get_feature", FEATURE_TESS);
+	ADD_PROPERTY(PropertyInfo(Variant::QUAT, "tess_level"), "set_tess", "get_tess");
+	ADD_PROPERTY(PropertyInfo(Variant::QUAT, "tess_uv"), "set_tess_uv", "get_tess_uv");
+	ADD_PROPERTYI(PropertyInfo(Variant::OBJECT, "tess_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture"), "set_texture", "get_texture", TEXTURE_TESS);
 
 	ADD_GROUP("Anisotropy", "anisotropy_");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "anisotropy_enabled"), "set_feature", "get_feature", FEATURE_ANISOTROPY);
@@ -2259,6 +2344,7 @@ void SpatialMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(TEXTURE_DETAIL_MASK);
 	BIND_ENUM_CONSTANT(TEXTURE_DETAIL_ALBEDO);
 	BIND_ENUM_CONSTANT(TEXTURE_DETAIL_NORMAL);
+	BIND_ENUM_CONSTANT(TEXTURE_TESS);
 	BIND_ENUM_CONSTANT(TEXTURE_MAX);
 
 	BIND_ENUM_CONSTANT(DETAIL_UV_1);
@@ -2276,6 +2362,8 @@ void SpatialMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(FEATURE_TRANSMISSION);
 	BIND_ENUM_CONSTANT(FEATURE_REFRACTION);
 	BIND_ENUM_CONSTANT(FEATURE_DETAIL);
+	BIND_ENUM_CONSTANT(FEATURE_TESS);
+
 	BIND_ENUM_CONSTANT(FEATURE_MAX);
 
 	BIND_ENUM_CONSTANT(BLEND_MODE_MIX);
@@ -2295,6 +2383,8 @@ void SpatialMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(FLAG_UNSHADED);
 	BIND_ENUM_CONSTANT(FLAG_USE_VERTEX_LIGHTING);
 	BIND_ENUM_CONSTANT(FLAG_DISABLE_DEPTH_TEST);
+	BIND_ENUM_CONSTANT(FLAG_USE_TESSELLATION);
+
 	BIND_ENUM_CONSTANT(FLAG_ALBEDO_FROM_VERTEX_COLOR);
 	BIND_ENUM_CONSTANT(FLAG_SRGB_VERTEX_COLOR);
 	BIND_ENUM_CONSTANT(FLAG_USE_POINT_SIZE);
@@ -2364,6 +2454,8 @@ SpatialMaterial::SpatialMaterial() :
 	set_depth_scale(0.05);
 	set_subsurface_scattering_strength(0);
 	set_transmission(Color(0, 0, 0));
+	set_tess(Quat(16, 16, 0.5, 1.2));
+	set_tess_uv(Quat(2.0, 2.0, 0.0, 0.0));
 	set_refraction(0.05);
 	set_line_width(1);
 	set_point_size(1);
